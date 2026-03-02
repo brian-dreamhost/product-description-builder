@@ -1,7 +1,11 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import FrameworkSelector from './FrameworkSelector.jsx'
 import FrameworkForm from './FrameworkForm.jsx'
 import OutputPreview from './OutputPreview.jsx'
+import OverallScoreCard from './OverallScoreCard.jsx'
+import CompetitorAnalyzer from './CompetitorAnalyzer.jsx'
+import { scoreSection, scoreOverallDescription, analyzeKeywordPlacement } from './scoringEngine.js'
+import { generatePlatformOutput } from './platformOutputs.js'
 
 const INITIAL_AIDA = {
   attention: '',
@@ -67,6 +71,18 @@ const EXAMPLE_COMMON = {
   priceCta: 'Start your free 14-day trial — no credit card required. Plans from $12/month.',
 }
 
+// Custom hook for debounced value
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+
+  return debouncedValue
+}
+
 export default function App() {
   const [framework, setFramework] = useState('aida')
   const [aidaData, setAidaData] = useState(INITIAL_AIDA)
@@ -77,12 +93,14 @@ export default function App() {
   const [copied, setCopied] = useState(false)
   const [showMobilePreview, setShowMobilePreview] = useState(false)
   const [fabNextId, setFabNextId] = useState(2)
+  const [targetKeyword, setTargetKeyword] = useState('')
+  const [activePlatform, setActivePlatform] = useState(null)
 
-  const fillTestData = () => {
-    setFramework('aida')
-    setCommonData(EXAMPLE_COMMON)
-    setAidaData(EXAMPLE_AIDA)
-  }
+  // Debounced data for scoring (300ms)
+  const debouncedAida = useDebounce(aidaData, 300)
+  const debouncedPas = useDebounce(pasData, 300)
+  const debouncedFab = useDebounce(fabData, 300)
+  const debouncedKeyword = useDebounce(targetKeyword, 300)
 
   const handleFrameworkChange = useCallback((newFramework) => {
     setFramework(newFramework)
@@ -133,6 +151,54 @@ export default function App() {
     setCommonData(prev => ({ ...prev, [field]: value }))
   }, [])
 
+  const handleCopy = useCallback(() => {
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [])
+
+  // ---- Section Scores (debounced) ----
+  const sectionScores = useMemo(() => {
+    const scores = {}
+    if (framework === 'aida') {
+      scores.attention = scoreSection(debouncedAida.attention, 'attention', 'aida')
+      scores.interest = scoreSection(debouncedAida.interest, 'interest', 'aida')
+      scores.desire = scoreSection(debouncedAida.desire, 'desire', 'aida')
+      scores.action = scoreSection(debouncedAida.action, 'action', 'aida')
+    } else if (framework === 'pas') {
+      scores.problem = scoreSection(debouncedPas.problem, 'problem', 'pas')
+      scores.agitate = scoreSection(debouncedPas.agitate, 'agitate', 'pas')
+      scores.solution = scoreSection(debouncedPas.solution, 'solution', 'pas')
+    } else if (framework === 'fab') {
+      debouncedFab.forEach((item, index) => {
+        scores[`fab_${index}`] = {
+          feature: scoreSection(item.feature, 'feature', 'fab'),
+          advantage: scoreSection(item.advantage, 'advantage', 'fab'),
+          benefit: scoreSection(item.benefit, 'benefit', 'fab'),
+        }
+      })
+    }
+    return scores
+  }, [framework, debouncedAida, debouncedPas, debouncedFab])
+
+  // ---- Keyword Placement ----
+  const keywordPlacement = useMemo(() => {
+    if (!debouncedKeyword.trim()) return null
+    const sections = {}
+    if (framework === 'aida') {
+      Object.entries(debouncedAida).forEach(([k, v]) => { sections[k] = v })
+    } else if (framework === 'pas') {
+      Object.entries(debouncedPas).forEach(([k, v]) => { sections[k] = v })
+    } else if (framework === 'fab') {
+      debouncedFab.forEach((item, i) => {
+        sections[`feature ${i + 1}`] = item.feature
+        sections[`advantage ${i + 1}`] = item.advantage
+        sections[`benefit ${i + 1}`] = item.benefit
+      })
+    }
+    return analyzeKeywordPlacement(sections, debouncedKeyword)
+  }, [framework, debouncedAida, debouncedPas, debouncedFab, debouncedKeyword])
+
+  // ---- Output Generation ----
   const generateOutput = useCallback(() => {
     const { productName, targetAudience, priceCta } = commonData
     const name = productName.trim()
@@ -149,28 +215,76 @@ export default function App() {
   }, [framework, aidaData, pasData, fabData, commonData, outputFormat])
 
   const output = generateOutput()
-
   const wordCount = output.trim() ? output.trim().split(/\s+/).length : 0
   const charCount = output.trim().length
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(output)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = output
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }, [output])
-
   const hasContent = output.trim().length > 0
+
+  // ---- Platform Output ----
+  const platformOutput = useMemo(() => {
+    if (!activePlatform || !hasContent) return null
+    const data = framework === 'aida' ? aidaData : framework === 'pas' ? pasData : fabData
+    return generatePlatformOutput(activePlatform, framework, data, commonData)
+  }, [activePlatform, framework, aidaData, pasData, fabData, commonData, hasContent])
+
+  // ---- Overall Description Score ----
+  const allText = useMemo(() => {
+    if (framework === 'aida') {
+      return Object.values(debouncedAida).join(' ')
+    } else if (framework === 'pas') {
+      return Object.values(debouncedPas).join(' ')
+    } else {
+      return debouncedFab.map(item => `${item.feature} ${item.advantage} ${item.benefit}`).join(' ')
+    }
+  }, [framework, debouncedAida, debouncedPas, debouncedFab])
+
+  const overallScore = useMemo(() => {
+    // For FAB, flatten section scores to a simple object
+    let flatScores = {}
+    if (framework === 'fab') {
+      Object.entries(sectionScores).forEach(([key, val]) => {
+        if (val.feature) flatScores[`${key}_feature`] = val.feature
+        if (val.advantage) flatScores[`${key}_advantage`] = val.advantage
+        if (val.benefit) flatScores[`${key}_benefit`] = val.benefit
+      })
+    } else {
+      flatScores = sectionScores
+    }
+    return scoreOverallDescription(allText, framework, flatScores, debouncedKeyword)
+  }, [allText, framework, sectionScores, debouncedKeyword])
+
+  // ---- Aggregate scores for competitor comparison ----
+  const aggregateYourScore = useMemo(() => {
+    if (!allText.trim()) return null
+    // Aggregate from section scores
+    let flatScores = {}
+    if (framework === 'fab') {
+      Object.entries(sectionScores).forEach(([key, val]) => {
+        if (val.feature) flatScores[`${key}_feature`] = val.feature
+        if (val.advantage) flatScores[`${key}_advantage`] = val.advantage
+        if (val.benefit) flatScores[`${key}_benefit`] = val.benefit
+      })
+    } else {
+      flatScores = sectionScores
+    }
+
+    const scores = Object.values(flatScores).filter(s => s && s.overall > 0)
+    if (scores.length === 0) return null
+
+    const avgReadability = Math.round(scores.reduce((s, v) => s + v.readability.score, 0) / scores.length)
+    const avgEmotional = Math.round(scores.reduce((s, v) => s + v.emotional.score, 0) / scores.length)
+    const avgSpecificity = Math.round(scores.reduce((s, v) => s + v.specificity.score, 0) / scores.length)
+    const avgCta = scores.filter(s => s.cta).length > 0
+      ? Math.round(scores.filter(s => s.cta).reduce((sum, s) => sum + s.cta.score, 0) / scores.filter(s => s.cta).length)
+      : 0
+
+    return {
+      overall: overallScore.overall,
+      readability: { score: avgReadability },
+      emotional: { score: avgEmotional },
+      specificity: { score: avgSpecificity },
+      cta: { score: avgCta },
+    }
+  }, [allText, sectionScores, framework, overallScore])
 
   return (
     <div className="min-h-screen bg-abyss bg-glow bg-grid">
@@ -193,7 +307,7 @@ export default function App() {
             Product Description Builder
           </h1>
           <p className="text-cloudy text-lg max-w-2xl">
-            Create compelling product descriptions using proven copywriting frameworks — AIDA, PAS, and FAB. Select a framework, fill in the guided fields, and get a polished description ready to copy.
+            Create compelling product descriptions using proven frameworks. Real-time scoring analyzes readability, emotional impact, specificity, and CTA strength as you type.
           </p>
           <div className="flex flex-wrap items-center gap-2 mt-4">
             <span className="text-sm text-galactic">Load example:</span>
@@ -218,16 +332,6 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex justify-end mb-4">
-          <button
-            type="button"
-            onClick={fillTestData}
-            className="px-3 py-1.5 text-xs font-mono bg-prince/20 text-prince border border-prince/30 rounded hover:bg-prince/30 transition-colors focus:outline-none focus:ring-2 focus:ring-prince focus:ring-offset-2 focus:ring-offset-abyss"
-          >
-            Fill Test Data
-          </button>
-        </div>
-
         {/* Framework Selector */}
         <FrameworkSelector
           selected={framework}
@@ -237,7 +341,7 @@ export default function App() {
         {/* Main Content: Form + Preview */}
         <div className="mt-8 flex flex-col lg:flex-row gap-6">
           {/* Form Side */}
-          <div className="w-full lg:w-[60%]">
+          <div className="w-full lg:w-[55%]">
             <FrameworkForm
               framework={framework}
               aidaData={aidaData}
@@ -250,11 +354,15 @@ export default function App() {
               onAddFabItem={handleAddFabItem}
               onRemoveFabItem={handleRemoveFabItem}
               onCommonChange={handleCommonChange}
+              targetKeyword={targetKeyword}
+              onTargetKeywordChange={setTargetKeyword}
+              sectionScores={sectionScores}
+              keywordPlacement={keywordPlacement}
             />
           </div>
 
           {/* Preview Side */}
-          <div className="w-full lg:w-[40%]">
+          <div className="w-full lg:w-[45%]">
             {/* Mobile Preview Toggle */}
             <button
               onClick={() => setShowMobilePreview(!showMobilePreview)}
@@ -264,10 +372,10 @@ export default function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
               </svg>
-              {showMobilePreview ? 'Hide Preview' : 'Show Preview'}
+              {showMobilePreview ? 'Hide Preview & Scores' : 'Show Preview & Scores'}
             </button>
 
-            <div className={`${showMobilePreview ? 'block' : 'hidden'} lg:block lg:sticky lg:top-6`}>
+            <div className={`${showMobilePreview ? 'block' : 'hidden'} lg:block lg:sticky lg:top-6 space-y-4`}>
               <OutputPreview
                 output={output}
                 outputFormat={outputFormat}
@@ -277,35 +385,106 @@ export default function App() {
                 hasContent={hasContent}
                 wordCount={wordCount}
                 charCount={charCount}
+                platformOutput={platformOutput}
+                onPlatformChange={setActivePlatform}
+                activePlatform={activePlatform}
               />
+
+              <OverallScoreCard
+                overallScore={overallScore}
+                sectionScores={framework === 'fab'
+                  ? Object.fromEntries(
+                      Object.entries(sectionScores).flatMap(([key, val]) => {
+                        if (val.feature) return [[`${key}_f`, val.feature], [`${key}_a`, val.advantage], [`${key}_b`, val.benefit]]
+                        return [[key, val]]
+                      })
+                    )
+                  : sectionScores
+                }
+                targetKeyword={debouncedKeyword}
+              />
+
+              <CompetitorAnalyzer yourScore={aggregateYourScore} />
             </div>
           </div>
         </div>
 
         {/* FAQ */}
-        <section className="mt-16">
+        <section className="mt-16 space-y-3">
           <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group">
             <summary className="px-6 py-5 cursor-pointer flex items-center justify-between text-left select-none hover:bg-white/[0.02] transition-colors">
-              <h2 className="text-lg font-bold text-white">Why use this instead of AI?</h2>
+              <h2 className="text-lg font-bold text-white">How does the scoring work?</h2>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-galactic transition-transform duration-200 group-open:rotate-180">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
             </summary>
             <div className="px-6 pb-6 space-y-4 text-sm text-cloudy leading-relaxed">
               <p>
-                AI chatbots can write product descriptions, but they produce generic, interchangeable copy. Every output sounds the same because there's no structured thinking behind it.
+                Each section of your description is scored in real-time across four dimensions:
               </p>
               <p>
-                <strong className="text-white">Frameworks force better thinking.</strong> AIDA, PAS, and FAB have been used by professional copywriters for decades because they work. Each field prompts you to think about a specific aspect of your product — the problem, the benefit, the proof — instead of hoping AI fills in the gaps.
+                <strong className="text-white">Length</strong> compares your word count to the ideal range for that section. For example, an AIDA Attention hook should be 15-30 words -- long enough to be compelling, short enough to be punchy.
               </p>
               <p>
-                <strong className="text-white">You know your product best.</strong> AI doesn't know your customers, your competitive advantage, or why someone should choose you over five alternatives. This tool gives you the structure; you bring the substance.
+                <strong className="text-white">Readability</strong> uses the Flesch-Kincaid formula to measure grade level. Web copy should target grade 6-8 for maximum accessibility.
               </p>
               <p>
-                <strong className="text-white">Consistency across your catalog.</strong> When you have 10, 50, or 200 products, frameworks keep every description at the same quality bar. No more descriptions that trail off or miss the call to action.
+                <strong className="text-white">Emotional Language</strong> detects power words (urgency, trust, exclusivity, emotion, action, value, sensory) and flags weak/filler words that dilute your message.
               </p>
               <p>
-                <strong className="text-white">It's faster than prompt engineering.</strong> Instead of writing and re-writing AI prompts to get the right tone and structure, just fill in the fields. The framework does the organizing for you.
+                <strong className="text-white">Specificity</strong> looks for numbers, percentages, timeframes, and named outcomes. "Saves 3 hours/week" scores higher than "saves time."
+              </p>
+            </div>
+          </details>
+
+          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group">
+            <summary className="px-6 py-5 cursor-pointer flex items-center justify-between text-left select-none hover:bg-white/[0.02] transition-colors">
+              <h2 className="text-lg font-bold text-white">Why use frameworks instead of AI?</h2>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-galactic transition-transform duration-200 group-open:rotate-180">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </summary>
+            <div className="px-6 pb-6 space-y-4 text-sm text-cloudy leading-relaxed">
+              <p>
+                AI chatbots can write product descriptions, but they produce generic, interchangeable copy. Every output sounds the same because there is no structured thinking behind it.
+              </p>
+              <p>
+                <strong className="text-white">Frameworks force better thinking.</strong> AIDA, PAS, and FAB have been used by professional copywriters for decades because they work. Each field prompts you to think about a specific aspect of your product -- the problem, the benefit, the proof -- instead of hoping AI fills in the gaps.
+              </p>
+              <p>
+                <strong className="text-white">You know your product best.</strong> AI does not know your customers, your competitive advantage, or why someone should choose you over five alternatives. This tool gives you the structure and real-time feedback; you bring the substance.
+              </p>
+              <p>
+                <strong className="text-white">Real-time coaching.</strong> Unlike AI-generated copy, this tool teaches you to write better. The scoring engine shows you exactly why your description works or does not -- weak words, missing specifics, readability issues -- so every description you write gets better.
+              </p>
+            </div>
+          </details>
+
+          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group">
+            <summary className="px-6 py-5 cursor-pointer flex items-center justify-between text-left select-none hover:bg-white/[0.02] transition-colors">
+              <h2 className="text-lg font-bold text-white">What platform formats are available?</h2>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-galactic transition-transform duration-200 group-open:rotate-180">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </summary>
+            <div className="px-6 pb-6 space-y-4 text-sm text-cloudy leading-relaxed">
+              <p>
+                Beyond the standard format options, you can export your description formatted for specific platforms:
+              </p>
+              <p>
+                <strong className="text-white">Amazon</strong> -- Title (200 chars), 5 bullet points (500 chars each), and description (2000 chars) matching Amazon listing requirements.
+              </p>
+              <p>
+                <strong className="text-white">Shopify</strong> -- HTML-formatted description with proper heading tags ready to paste into your Shopify product editor.
+              </p>
+              <p>
+                <strong className="text-white">Google Shopping</strong> -- Short description (150 chars) and full description (5000 chars) for your product feed.
+              </p>
+              <p>
+                <strong className="text-white">Etsy</strong> -- 140-character title, auto-generated tags (13 max), and formatted description.
+              </p>
+              <p>
+                <strong className="text-white">Web HTML</strong> -- SEO-friendly HTML with Schema.org Product markup, heading hierarchy, and semantic structure.
               </p>
             </div>
           </details>

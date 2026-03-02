@@ -1,3 +1,5 @@
+import SectionScore from './SectionScore.jsx'
+
 const FRAMEWORK_EXPLAINERS = {
   aida: 'AIDA walks your reader through a journey: grab their attention, build interest in your product, create desire for the outcome, then tell them what to do next. It\'s the classic copywriting formula used in ads and landing pages.',
   pas: 'PAS connects with your reader emotionally: name the problem they\'re experiencing, make it feel urgent by showing what happens if they don\'t act, then present your product as the solution. Great for email and social media copy.',
@@ -22,15 +24,15 @@ const AIDA_FIELDS = [
   {
     key: 'desire',
     label: 'Desire',
-    helperText: 'Make them want it. Describe the benefits, outcomes, and transformation. Focus on how their life or business improves — not just what the product does.',
+    helperText: 'Make them want it. Describe the benefits, outcomes, and transformation. Focus on how their life or business improves -- not just what the product does.',
     placeholder: 'Get paid faster with automatic reminders, beautiful templates, and one-click payment links. Our users get paid 3x faster on average.',
     rows: 4,
   },
   {
     key: 'action',
     label: 'Action',
-    helperText: 'Tell them exactly what to do next. Be specific and remove friction — mention if it\'s free, no credit card, takes 30 seconds, etc.',
-    placeholder: 'Start your free 14-day trial — no credit card required.',
+    helperText: 'Tell them exactly what to do next. Be specific and remove friction -- mention if it\'s free, no credit card, takes 30 seconds, etc.',
+    placeholder: 'Start your free 14-day trial -- no credit card required.',
     rows: 2,
   },
 ]
@@ -39,14 +41,14 @@ const PAS_FIELDS = [
   {
     key: 'problem',
     label: 'Problem',
-    helperText: 'Describe the problem your customer faces. Be specific and relatable — use language they would actually use when describing this frustration.',
+    helperText: 'Describe the problem your customer faces. Be specific and relatable -- use language they would actually use when describing this frustration.',
     placeholder: 'Managing inventory across multiple sales channels is a nightmare. You\'re updating spreadsheets, checking stock levels, and praying nothing gets oversold.',
     rows: 4,
   },
   {
     key: 'agitate',
     label: 'Agitate',
-    helperText: 'Make the problem feel more urgent. What happens if they don\'t solve it? What\'s the cost of inaction — lost revenue, wasted time, frustrated customers?',
+    helperText: 'Make the problem feel more urgent. What happens if they don\'t solve it? What\'s the cost of inaction -- lost revenue, wasted time, frustrated customers?',
     placeholder: 'Every oversold item means a refund, an angry customer, and a hit to your reputation. One bad review can cost you dozens of future sales.',
     rows: 4,
   },
@@ -59,7 +61,7 @@ const PAS_FIELDS = [
   },
 ]
 
-function TextareaField({ label, helperText, placeholder, value, onChange, rows = 3, sectionColor }) {
+function TextareaField({ label, helperText, placeholder, value, onChange, rows = 3, sectionColor, score }) {
   return (
     <div className="mb-5">
       <label className="block mb-1.5">
@@ -68,6 +70,15 @@ function TextareaField({ label, helperText, placeholder, value, onChange, rows =
             <span className={`inline-block w-2 h-2 rounded-full ${sectionColor}`} />
           )}
           {label}
+          {score && score.overall > 0 && (
+            <span className={`ml-auto text-xs font-medium px-1.5 py-0.5 rounded ${
+              score.overall >= 70 ? 'bg-turtle/10 text-turtle' :
+              score.overall >= 40 ? 'bg-tangerine/10 text-tangerine' :
+              'bg-coral/10 text-coral'
+            }`}>
+              {score.overall}/100
+            </span>
+          )}
         </span>
       </label>
       <p className="text-xs text-galactic mb-2 leading-relaxed">{helperText}</p>
@@ -78,6 +89,7 @@ function TextareaField({ label, helperText, placeholder, value, onChange, rows =
         rows={rows}
         className="w-full bg-midnight border border-metal/30 rounded-lg px-4 py-3 text-sm text-white placeholder-galactic/60 focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure transition-colors resize-y min-h-[60px]"
       />
+      {score && <SectionScore score={score} sectionKey={label.toLowerCase()} />}
     </div>
   )
 }
@@ -117,7 +129,7 @@ const SECTION_COLORS = {
   },
 }
 
-function FabItemCard({ item, index, total, onChange, onRemove }) {
+function FabItemCard({ item, index, total, onChange, onRemove, scores }) {
   return (
     <div className="card-gradient border border-metal/20 rounded-xl p-5 mb-4 relative">
       <div className="flex items-center justify-between mb-4">
@@ -142,7 +154,18 @@ function FabItemCard({ item, index, total, onChange, onRemove }) {
 
       <div className="mb-4">
         <label className="block mb-1.5">
-          <span className="text-xs font-semibold text-cloudy">Feature</span>
+          <span className="text-xs font-semibold text-cloudy flex items-center gap-2">
+            Feature
+            {scores?.feature?.overall > 0 && (
+              <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                scores.feature.overall >= 70 ? 'bg-turtle/10 text-turtle' :
+                scores.feature.overall >= 40 ? 'bg-tangerine/10 text-tangerine' :
+                'bg-coral/10 text-coral'
+              }`}>
+                {scores.feature.overall}
+              </span>
+            )}
+          </span>
         </label>
         <p className="text-xs text-galactic mb-2">List a specific feature of your product. Be concrete and factual.</p>
         <textarea
@@ -152,11 +175,23 @@ function FabItemCard({ item, index, total, onChange, onRemove }) {
           rows={2}
           className="w-full bg-midnight border border-metal/30 rounded-lg px-4 py-3 text-sm text-white placeholder-galactic/60 focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure transition-colors resize-y min-h-[50px]"
         />
+        {scores?.feature && <SectionScore score={scores.feature} sectionKey="feature" compact />}
       </div>
 
       <div className="mb-4">
         <label className="block mb-1.5">
-          <span className="text-xs font-semibold text-cloudy">Advantage</span>
+          <span className="text-xs font-semibold text-cloudy flex items-center gap-2">
+            Advantage
+            {scores?.advantage?.overall > 0 && (
+              <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                scores.advantage.overall >= 70 ? 'bg-turtle/10 text-turtle' :
+                scores.advantage.overall >= 40 ? 'bg-tangerine/10 text-tangerine' :
+                'bg-coral/10 text-coral'
+              }`}>
+                {scores.advantage.overall}
+              </span>
+            )}
+          </span>
         </label>
         <p className="text-xs text-galactic mb-2">What does this feature enable? How is it better than the alternative?</p>
         <textarea
@@ -166,11 +201,23 @@ function FabItemCard({ item, index, total, onChange, onRemove }) {
           rows={2}
           className="w-full bg-midnight border border-metal/30 rounded-lg px-4 py-3 text-sm text-white placeholder-galactic/60 focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure transition-colors resize-y min-h-[50px]"
         />
+        {scores?.advantage && <SectionScore score={scores.advantage} sectionKey="advantage" compact />}
       </div>
 
       <div>
         <label className="block mb-1.5">
-          <span className="text-xs font-semibold text-cloudy">Benefit</span>
+          <span className="text-xs font-semibold text-cloudy flex items-center gap-2">
+            Benefit
+            {scores?.benefit?.overall > 0 && (
+              <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                scores.benefit.overall >= 70 ? 'bg-turtle/10 text-turtle' :
+                scores.benefit.overall >= 40 ? 'bg-tangerine/10 text-tangerine' :
+                'bg-coral/10 text-coral'
+              }`}>
+                {scores.benefit.overall}
+              </span>
+            )}
+          </span>
         </label>
         <p className="text-xs text-galactic mb-2">Why does the customer care? How does this improve their life or work?</p>
         <textarea
@@ -180,6 +227,7 @@ function FabItemCard({ item, index, total, onChange, onRemove }) {
           rows={2}
           className="w-full bg-midnight border border-metal/30 rounded-lg px-4 py-3 text-sm text-white placeholder-galactic/60 focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure transition-colors resize-y min-h-[50px]"
         />
+        {scores?.benefit && <SectionScore score={scores.benefit} sectionKey="benefit" compact />}
       </div>
     </div>
   )
@@ -197,6 +245,10 @@ export default function FrameworkForm({
   onAddFabItem,
   onRemoveFabItem,
   onCommonChange,
+  targetKeyword,
+  onTargetKeywordChange,
+  sectionScores,
+  keywordPlacement,
 }) {
   return (
     <div className="card-gradient border border-metal/20 rounded-2xl p-6 sm:p-8">
@@ -220,10 +272,35 @@ export default function FrameworkForm({
           <TextInputField
             label="Price / CTA"
             helperText="Pricing or call-to-action text"
-            placeholder="e.g., $29/month — Start Free Trial"
+            placeholder="e.g., $29/month -- Start Free Trial"
             value={commonData.priceCta}
             onChange={(e) => onCommonChange('priceCta', e.target.value)}
           />
+        </div>
+
+        {/* Target Keyword */}
+        <div className="mt-2">
+          <TextInputField
+            label="Target Keyword"
+            helperText="Optional. Track keyword usage and density across your description."
+            placeholder="e.g., invoicing software for small business"
+            value={targetKeyword}
+            onChange={(e) => onTargetKeywordChange(e.target.value)}
+          />
+          {keywordPlacement && targetKeyword.trim() && (
+            <div className="px-3 py-2 rounded-lg bg-midnight/30 border border-metal/10 -mt-3 mb-2">
+              <span className="text-[10px] text-galactic uppercase tracking-wider font-medium block mb-1.5">Keyword Placement</span>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(keywordPlacement).map(([section, info]) => (
+                  <span key={section} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border ${
+                    info.found ? 'border-turtle/30 text-turtle' : 'border-coral/30 text-coral'
+                  }`}>
+                    {info.found ? '\u2713' : '\u2717'} {section} {info.count > 0 && `(${info.count}x)`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -252,6 +329,7 @@ export default function FrameworkForm({
               onChange={(e) => onAidaChange(field.key, e.target.value)}
               rows={field.rows}
               sectionColor={SECTION_COLORS.aida[field.key]}
+              score={sectionScores?.[field.key]}
             />
           ))}
         </div>
@@ -269,6 +347,7 @@ export default function FrameworkForm({
               onChange={(e) => onPasChange(field.key, e.target.value)}
               rows={field.rows}
               sectionColor={SECTION_COLORS.pas[field.key]}
+              score={sectionScores?.[field.key]}
             />
           ))}
         </div>
@@ -284,6 +363,7 @@ export default function FrameworkForm({
               total={fabData.length}
               onChange={onFabChange}
               onRemove={onRemoveFabItem}
+              scores={sectionScores?.[`fab_${index}`]}
             />
           ))}
 
