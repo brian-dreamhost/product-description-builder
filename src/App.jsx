@@ -119,6 +119,19 @@ export default function App() {
     }
   }, [])
 
+  const fillTestData = useCallback(() => {
+    setCommonData(EXAMPLE_COMMON)
+    setTargetKeyword('invoicing software')
+    if (framework === 'aida') {
+      setAidaData(EXAMPLE_AIDA)
+    } else if (framework === 'pas') {
+      setPasData(EXAMPLE_PAS)
+    } else if (framework === 'fab') {
+      setFabData(EXAMPLE_FAB)
+      setFabNextId(4)
+    }
+  }, [framework])
+
   const handleAidaChange = useCallback((field, value) => {
     setAidaData(prev => ({ ...prev, [field]: value }))
   }, [])
@@ -288,7 +301,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-abyss bg-glow bg-grid">
-      <div className="relative z-10 max-w-6xl mx-auto px-4 py-12 animate-fadeIn">
+      <div className="relative z-10 max-w-[1600px] mx-auto px-4 py-12 animate-fadeIn">
         {/* Breadcrumb */}
         <nav className="mb-8 text-sm text-galactic">
           <a href="https://seo-tools-tau.vercel.app/" className="text-azure hover:text-white transition-colors">Free Tools</a>
@@ -331,6 +344,13 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {/* Fill Test Data */}
+        <div className="flex justify-end mb-4">
+          <button type="button" onClick={fillTestData}
+            className="px-3 py-1.5 text-xs font-mono bg-prince/20 text-prince border border-prince/30 rounded hover:bg-prince/30 transition-colors focus:outline-none focus:ring-2 focus:ring-prince focus:ring-offset-2 focus:ring-offset-abyss"
+          >Fill Test Data</button>
+        </div>
 
         {/* Framework Selector */}
         <FrameworkSelector
@@ -411,7 +431,7 @@ export default function App() {
 
         {/* FAQ */}
         <section className="mt-16 space-y-3">
-          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group">
+          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group hover-lift">
             <summary className="px-6 py-5 cursor-pointer flex items-center justify-between text-left select-none hover:bg-white/[0.02] transition-colors">
               <h2 className="text-lg font-bold text-white">How does the scoring work?</h2>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-galactic transition-transform duration-200 group-open:rotate-180">
@@ -437,7 +457,7 @@ export default function App() {
             </div>
           </details>
 
-          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group">
+          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group hover-lift">
             <summary className="px-6 py-5 cursor-pointer flex items-center justify-between text-left select-none hover:bg-white/[0.02] transition-colors">
               <h2 className="text-lg font-bold text-white">Why use frameworks instead of AI?</h2>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-galactic transition-transform duration-200 group-open:rotate-180">
@@ -460,7 +480,7 @@ export default function App() {
             </div>
           </details>
 
-          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group">
+          <details className="card-gradient border border-metal/20 rounded-2xl overflow-hidden group hover-lift">
             <summary className="px-6 py-5 cursor-pointer flex items-center justify-between text-left select-none hover:bg-white/[0.02] transition-colors">
               <h2 className="text-lg font-bold text-white">What platform formats are available?</h2>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-galactic transition-transform duration-200 group-open:rotate-180">
